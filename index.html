@@ -36,9 +36,9 @@
       <div class="pane-header">
         <span id="pane3Title">Year-Wise Folders</span>
         <span class="yearbox" id="addYearBtn" style="display:none">
-          <input type="text" id="yearInput" placeholder="2025-26" maxlength="7"
+          <input type="text" id="yearInput" placeholder="2025-26 or Folder 1"
             onkeydown="if(event.key==='Enter')addNewYear()">
-          <button class="btn-add" onclick="addNewYear()">+ Add Financial Year</button>
+          <button class="btn-add" onclick="addNewYear()">+ Add FY / Folder</button>
         </span>
       </div>
       <div class="err" id="yearErr" style="padding:0 14px"></div>
@@ -46,6 +46,21 @@
     </div>
   </div>
 
+  <div class="modal" id="folderModal">
+    <div class="modal-content">
+      <h3 style="margin:0 0 15px">नया फोल्डर बनाएँ</h3>
+      <div class="form-group">
+        <label for="newFolderName">Folder name:</label>
+        <input type="text" id="newFolderName" placeholder="उदा. Folder 1"
+          onkeydown="if(event.key==='Enter')saveSubFolder()">
+        <div class="err" id="folderErr"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeFolderModal()">Cancel</button>
+        <button class="btn-add" onclick="saveSubFolder()">Create Folder</button>
+      </div>
+    </div>
+  </div>
   <input type="file" id="filePicker" multiple style="display:none" onchange="onFilesChosen(this)">
 
   <div class="modal" id="clientModal">

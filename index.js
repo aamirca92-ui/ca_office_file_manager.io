@@ -270,4 +270,154 @@ async function openFile(y, i, w) {
     catch (e) { setStatus('Cannot open file: ' + e.message, true); }
 }
 
+/* ---------- Nested folders: folders inside folders, any depth (these versions replace the earlier ones above) ---------- */
+const FYPAT = /^\d{4}-\d{2}$/;
+function safeName(n) { return n.trim().replace(/[\\/:*?"<>|]/g, '-'); }
+function defaultFY() { const n = new Date(), y = n.getMonth() >= 3 ? n.getFullYear() : n.getFullYear() - 1; return y + '-' + String(y + 1).slice(2); }
+function allYears() {
+    const s = new Set();
+    data.clients.forEach(c => Object.values(c.years).forEach(o => Object.keys(o).forEach(y => { if (FYPAT.test(y)) s.add(y); })));
+    return [...s].sort().reverse();
+}
+function itemsAt(client, w, y, p, create) {
+    const yrs = client.years[w] || (create ? (client.years[w] = {}) : null);
+    let arr = (yrs && yrs[y]) || (create ? (yrs[y] = []) : null);
+    if (!arr) return [];
+    for (const n of (p ? p.split('/') : [])) { const f = arr.find(x => x.dir && x.name === n); if (!f) return null; arr = f.items; }
+    return arr;
+}
+function countFiles(a) { return a.reduce((s, x) => s + (x.dir ? countFiles(x.items) : 1), 0); }
+function fsPath(client, w, y, p) { return [client.name, w, y].concat(p ? p.split('/') : []); }
+
+function treeHTML(items, y, w, p, k, depth) {
+    const pad = 32 + depth * 18;
+    return items.map((f, i) => {
+        if (f.dir) {
+            const fp = p ? p + '/' + f.name : f.name, kk = k + '/' + f.name, open = !ui.closed[kk];
+            return `<div class="file subhead" style="padding-left:${pad}px" onclick="toggle(${jq(kk)})"><span>${open ? '📂' : '📁'} ${esc(f.name)} <small>(${countFiles(f.items)} files)</small></span>
+        <span class="acts"><button class="btn-ghost" onclick="event.stopPropagation();pickFiles(${jq(y)},${jq(w)},${jq(fp)})">+ Files</button>
+        <button class="btn-ghost" onclick="event.stopPropagation();openFolderModal(${jq(y)},${jq(w)},${jq(fp)})">+ Folder</button>
+        <button class="btn-del" onclick="event.stopPropagation();delTwice(this,()=>deleteItem(${jq(y)},${i},${jq(w)},${jq(p)}))">🗑</button></span></div>
+        ${open ? (f.items.length ? treeHTML(f.items, y, w, fp, kk, depth + 1) : `<div class="nofile" style="padding-left:${pad + 18}px">खाली फोल्डर</div>`) : ''}`;
+        }
+        return `<div class="file" style="padding-left:${pad}px"><span style="cursor:pointer" title="Open file" onclick="openFile(${jq(y)},${i},${jq(w)},${jq(p)})">📄 ${esc(f.name)}<small>${fmtSize(f.size)} · ${esc(f.date)}</small></span><button class="btn-del" onclick="deleteItem(${jq(y)},${i},${jq(w)},${jq(p)})">✕</button></div>`;
+    }).join('');
+}
+function folderBlock(client, w, y, showWork) {
+    const items = itemsAt(client, w, y, '', false), k = client.id + w + y, open = !ui.closed[k];
+    const label = showWork ? w : (FYPAT.test(y) ? 'FY ' + y : y);
+    const del = showWork ? '' : `<button class="btn-del" onclick="event.stopPropagation();delTwice(this,()=>deleteYear(${jq(y)}))">🗑</button>`;
+    return `<div class="folder"><div class="fhead" onclick="toggle(${jq(k)})"><span>${open ? '📂' : '📁'} ${esc(label)} <small>(${countFiles(items)} files)</small></span>
+    <span class="acts"><button class="btn-ghost" onclick="event.stopPropagation();pickFiles(${jq(y)},${jq(w)},'')">+ Add Files</button>
+    <button class="btn-ghost" onclick="event.stopPropagation();openFolderModal(${jq(y)},${jq(w)},'')">+ Add Folder</button>${del}</span></div>
+    ${open ? (items.length ? treeHTML(items, y, w, '', k, 0) : '<div class="nofile">इस फोल्डर में अभी कुछ नहीं है।</div>') : ''}</div>`;
+}
+function renderPane3() {
+    const el = document.getElementById('pane3Content');
+    const { client, work } = current();
+    const addBtn = document.getElementById('addYearBtn');
+    document.getElementById('yearErr').textContent = '';
+    if (ui.mode === 'fy') { renderFY(el, client); return; }
+    if (!client || !work || !client.services.includes(work)) {
+        addBtn.style.display = 'none';
+        document.getElementById('pane3Title').textContent = 'Year-Wise Folders';
+        el.innerHTML = '<div class="empty-state"><h3>📂 फोल्डर देखने के लिए क्लाइंट और काम चुनें</h3><p>ऊपर के बटन से व्यू बदल सकते हैं।</p></div>';
+        return;
+    }
+    addBtn.style.display = 'flex';
+    document.getElementById('pane3Title').textContent = client.name + ' › ' + work;
+    const keys = Object.keys(client.years[work] || {}).sort().reverse();
+    el.innerHTML = keys.length ? keys.map(y => folderBlock(client, work, y, false)).join('') : '<div class="empty-state">कोई फोल्डर नहीं है। ऊपर FY या Folder जोड़ें।</div>';
+}
+function renderFY(el, client) {
+    document.getElementById('addYearBtn').style.display = 'none';
+    const y = ui.a, t = document.getElementById('pane3Title');
+    if (!y || !client) {
+        t.textContent = 'FY Folder';
+        el.innerHTML = '<div class="empty-state"><h3>📂 पहले FY और फिर क्लाइंट चुनें</h3></div>';
+        return;
+    }
+    t.textContent = 'FY ' + y + ' › ' + client.name;
+    el.innerHTML = client.services.length ? client.services.map(w => folderBlock(client, w, y, true)).join('') : '<div class="empty-state">इस क्लाइंट में कोई सर्विस नहीं है।</div>';
+}
+
+function addNewYear() {
+    const { client, work } = current(); if (!client || !work) return;
+    const inp = document.getElementById('yearInput'), err = document.getElementById('yearErr');
+    let v = inp.value.trim() || defaultFY();
+    if (FYPAT.test(v)) { if ((+v.slice(0, 4) + 1) % 100 !== +v.slice(5)) { err.textContent = 'Financial year सही नहीं है। उदा. 2025-26'; return; } }
+    else v = safeName(v);
+    const yrs = (client.years[work] = client.years[work] || {});
+    if (yrs[v]) { err.textContent = v + ' का फोल्डर पहले से है।'; return; }
+    yrs[v] = []; inp.value = ''; save(); renderAll();
+    fsDo(async () => { await dirAt([client.name, work, v], true); });
+}
+function pickFiles(y, w, p) { ui.uploadYear = y; ui.uploadWork = w; ui.uploadPath = p || ''; const el = document.getElementById('filePicker'); el.value = ''; el.click(); }
+function onFilesChosen(inp) {
+    const { client, work } = current(ui.uploadWork), y = ui.uploadYear, p = ui.uploadPath || '';
+    if (!client || !work || !y) return;
+    const arr = itemsAt(client, work, y, p, true); if (!arr) return;
+    const date = new Date().toLocaleDateString('en-IN'), files = [...inp.files];
+    files.forEach(f => { const i = arr.findIndex(x => !x.dir && x.name === f.name); if (i >= 0) arr.splice(i, 1); arr.push({ name: f.name, size: f.size, date }); });
+    save(); renderPane3();
+    fsDo(async () => {
+        const d = await dirAt(fsPath(client, work, y, p), true);
+        for (const f of files) { const h = await d.getFileHandle(f.name, { create: true }); const w = await h.createWritable(); await w.write(f); await w.close(); }
+    });
+}
+function deleteItem(y, i, w, p) {
+    const { client, work } = current(w); const arr = itemsAt(client, work, y, p); const it = arr && arr[i]; if (!it) return;
+    arr.splice(i, 1); save(); renderPane3();
+    fsDo(async () => { const d = await dirAt(fsPath(client, work, y, p)); await d.removeEntry(it.name, { recursive: true }); });
+}
+async function openFile(y, i, w, p) {
+    const { client, work } = current(w); const arr = itemsAt(client, work, y, p); const it = arr && arr[i];
+    if (!it) return;
+    if (!dirRoot) { setStatus('Select a storage folder to open files.', true); return; }
+    try { const d = await dirAt(fsPath(client, work, y, p)); const f = await (await d.getFileHandle(it.name)).getFile(); window.open(URL.createObjectURL(f), '_blank'); }
+    catch (e) { setStatus('Cannot open file: ' + e.message, true); }
+}
+function openFolderModal(y, w, p) {
+    ui.fCtx = { y, w, p };
+    document.getElementById('newFolderName').value = '';
+    document.getElementById('folderErr').textContent = '';
+    document.getElementById('folderModal').classList.add('show');
+    setTimeout(() => document.getElementById('newFolderName').focus(), 0);
+}
+function closeFolderModal() { document.getElementById('folderModal').classList.remove('show'); }
+function saveSubFolder() {
+    const { y, w, p } = ui.fCtx || {}; const { client, work } = current(w);
+    const err = document.getElementById('folderErr'), name = safeName(document.getElementById('newFolderName').value);
+    if (!client || !work || !y) return;
+    if (!name) { err.textContent = 'फोल्डर का नाम लिखें।'; return; }
+    const arr = itemsAt(client, work, y, p, true); if (!arr) return;
+    if (arr.some(x => x.name.toLowerCase() === name.toLowerCase())) { err.textContent = 'इस नाम का फोल्डर या फाइल पहले से है।'; return; }
+    arr.push({ name, dir: true, items: [] }); save(); closeFolderModal(); renderPane3();
+    fsDo(async () => { await dirAt(fsPath(client, work, y, p).concat([name]), true); });
+}
+document.getElementById('folderModal').addEventListener('click', e => { if (e.target.id === 'folderModal') closeFolderModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFolderModal(); });
+async function readDir(dh) {
+    const out = [];
+    for await (const [n, h] of dh.entries()) {
+        if (h.kind === 'directory') out.push({ name: n, dir: true, items: await readDir(h) });
+        else { const f = await h.getFile(); out.push({ name: n, size: f.size, date: new Date(f.lastModified).toLocaleDateString('en-IN') }); }
+    }
+    return out.sort((a, b) => (b.dir ? 1 : 0) - (a.dir ? 1 : 0) || a.name.localeCompare(b.name));
+}
+async function scan() {
+    const clients = [];
+    for await (const [n, h] of dirRoot.entries()) {
+        if (h.kind !== 'directory') continue;
+        const c = { id: n, name: n, services: [], years: {} };
+        for await (const [w, wh] of h.entries()) {
+            if (wh.kind !== 'directory' || !WORKS.includes(w)) continue;
+            c.services.push(w); c.years[w] = {};
+            for await (const [y, yh] of wh.entries()) { if (yh.kind === 'directory') c.years[w][y] = await readDir(yh); }
+        }
+        clients.push(c);
+    }
+    data = { clients }; ui.a = null; ui.b = null; save(); renderAll();
+}
+
 load(); renderAll(); restoreFolder();
