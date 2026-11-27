@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="hi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CA / Tax Practice Folder Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header>
+    <div class="header-title">📁 CA / Tax Folder Explorer</div>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="btnClientMode" onclick="setMode('client')">👤 Client-Wise View</button>
+      <button class="mode-btn" id="btnWorkMode" onclick="setMode('work')">💼 Work-Wise (MCA/IT/GST)</button>
+      <button class="mode-btn" id="btnFYMode" onclick="setMode('fy')">📅 FY-Wise View</button>
+    </div>
+    <button class="btn-ghost" id="folderBtn" onclick="connectFolder()">📂 Select Storage Folder</button>
+    <span id="fsStatus" class="err" style="color:var(--mute)"></span>
+    <button class="btn-add" onclick="openModal()">+ Add New Client</button>
+  </header>
+
+  <div class="workspace">
+    <div class="pane">
+      <div class="pane-header" id="pane1Title">Clients List</div>
+      <div class="search-box"><input type="text" id="searchInput" placeholder="Search client…" oninput="renderAll()">
+      </div>
+      <div class="list-container" id="pane1List"></div>
+    </div>
+    <div class="pane">
+      <div class="pane-header" id="pane2Title">Work Categories</div>
+      <div class="list-container" id="pane2List"></div>
+    </div>
+    <div class="pane">
+      <div class="pane-header">
+        <span id="pane3Title">Year-Wise Folders</span>
+        <span class="yearbox" id="addYearBtn" style="display:none">
+          <input type="text" id="yearInput" placeholder="2025-26" maxlength="7"
+            onkeydown="if(event.key==='Enter')addNewYear()">
+          <button class="btn-add" onclick="addNewYear()">+ Add Financial Year</button>
+        </span>
+      </div>
+      <div class="err" id="yearErr" style="padding:0 14px"></div>
+      <div id="pane3Content" class="list-container"></div>
+    </div>
+  </div>
+
+  <input type="file" id="filePicker" multiple style="display:none" onchange="onFilesChosen(this)">
+
+  <div class="modal" id="clientModal">
+    <div class="modal-content">
+      <h3 style="margin:0 0 15px">नया क्लाइंट जोड़ें</h3>
+      <div class="form-group">
+        <label for="newClientName">Client / Firm Name:</label>
+        <input type="text" id="newClientName" placeholder="उदा. Sharma Enterprises"
+          onkeydown="if(event.key==='Enter')saveNewClient()">
+        <div class="err" id="clientErr"></div>
+      </div>
+      <div class="form-group">
+        <label>कौन-कौन से काम हैं? (Services):</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" value="MCA" checked> MCA</label>
+          <label><input type="checkbox" value="Income Tax" checked> Income Tax</label>
+          <label><input type="checkbox" value="GST" checked> GST</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-add" onclick="saveNewClient()">Save Client</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+
+</html>
